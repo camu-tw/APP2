@@ -31,26 +31,27 @@ def main():
     print()
     
     # Charger les données initiales
-    print("📥 Chargement des données...")
+    print("Chargement des données...")
     avions = APP_datasets.AVIONS_INITIAL  # On utilise le dataset avec 24 avions
     print(f"   ✓ {len(avions)} avions chargés")
     
     # Vérifier que les données sont correctes
-    print("\n🔍 Vérification de la cohérence des données...")
+    print("\n Vérification de la cohérence des données...")
     erreurs = verification_donne(avions)
     
     if erreurs:
         # S'il y a des erreurs, les afficher et arrêter
         print(f"   ❌ {len(erreurs)} erreur(s) détectée(s) !")
         for erreur in erreurs:
-            print(f"      - {erreur}")
-        return
+            print(f" - {erreur}")
+        print ("votre liste est invalide, merci de renseigner une bonne liste.")
+        return #on prend le parti pris que si la liste est mauvaise il sera trop compliqué de reboucher un trou, donc on demande à l'utilisateur de revenir avec une bonne liste 
     else:
         # Si pas d'erreur, continue
         print("   ✓ Toutes les données sont valides")
     
     # Afficher le premier avion comme exemple
-    print("\n📋 Exemple d'avion dans le dataset:")
+    print("\n Exemple d'avion dans le dataset:")
     premier_avion = avions[0]
     print(f"   ID: {premier_avion['id']}")
     print(f"   Carburant restant: {premier_avion['fuel']} minutes")
