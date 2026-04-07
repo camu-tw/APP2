@@ -31,8 +31,34 @@ def main():
     print()
     
     # Charger les données initiales
-    print("📥 Chargement des données...")
-    avions = APP_datasets.AVIONS_INITIAL  # On utilise le dataset avec 24 avions
+    print("""Parmis les choix si dessous, veuillez selectioner quelle liste voulez
+          vous trier:
+                - Liste de 24 avions predefinis : 0
+                - Generateur de trafique d'avions : 1
+                - Genrateur d'une liste de longeur personaliser : 2
+          """
+          )
+    choix = None
+    while choix is None:
+        try:
+            choix = int(input("Votre choix : "))
+            if choix not in [0, 1, 2]:
+                print("❌ Erreur : Veuillez entrer 0, 1 ou 2")
+                choix = None
+        except ValueError:
+            print("❌ Erreur : Veuillez entrer un entier valide (0, 1 ou 2)")
+    
+    if choix == 0:
+        avions = APP_datasets.AVIONS_INITIAL  # On utilise le dataset avec 24 avions
+    elif choix == 1:
+        avions = generate_random_traffic()  # Générer des avions aléatoires
+    elif choix == 2:
+        try:
+            nombre = int(input("Combien d'avions voulez-vous générer ? "))
+            avions = generate_random_traffic(nombre)  # Générer une liste personnalisée
+        except ValueError:
+            print("❌ Erreur : Veuillez entrer un nombre valide")
+            avions = APP_datasets.AVIONS_INITIAL  # Fallback au dataset par défaut
     print(f"   ✓ {len(avions)} avions chargés")
     
     # Vérifier que les données sont correctes
