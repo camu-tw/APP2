@@ -1,0 +1,16 @@
+def selection_tri_score(L, p):
+    """
+    Trie une liste de dictionnaires L selon la clé p (ex: "fuel", "scoring").
+    Retourne la liste triée et le nombre de comparaisons effectuées.
+    """
+    n = len(L)
+    a = 0  # Compteur de comparaisons
+    for i in range(n):
+        min_idx = i
+        for j in range(i + 1, n):
+            if L[j][p] < L[min_idx][p]:
+                min_idx = j
+            a += 1  # Incrémente à chaque comparaison
+        L[i], L[min_idx] = L[min_idx], L[i]
+    return L, a
+print(selection_tri_score(AVIONS_INITIAL, "fuel"))
