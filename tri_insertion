@@ -1,17 +1,19 @@
-def insertion_tri_score(L, p): #L = liste de dictionnaires d'avions / 
-    #p = paramètre qui permet de trier en fonction, il faut que p soit le nom d'une clé du dictionnaire qui soit dans chaque dico d'avion
-
-    n=len(L)
-    a=0 #a affiche la complexité
+def insertion_tri_score(L, p):
+    """
+    Trie une liste de dictionnaires L selon la clé p (ex: "fuel", "scoring").
+    Retourne la liste triée et le nombre de comparaisons effectuées.
+    """
+    n = len(L)
+    a = 0  # Compteur de comparaisons
     for i in range(1, n):
-        key= L[i]
-        j= i-1
-        while j>=0 and L[j][p]> key[p]:
-            L[j+1]= L[j]
-            j=j-1
-            a+=1
-        L[j+1]= key
-    return L,a
+        key = L[i]
+        j = i - 1
+        while j >= 0 and L[j][p] > key[p]:
+            L[j + 1] = L[j]
+            j -= 1
+            a += 1  # Incrémente à chaque comparaison
+        L[j + 1] = key
+    return L, a
 
 
 

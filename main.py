@@ -9,7 +9,7 @@ from policies import policy_fuel, policy_medical, policy_diplomatic  # Les diff�
 from tris import tri_insertion, tri_selection  # Les algorithmes de tri
 from simulation import simuler_atterrissages, afficher_bilan  # La simulation
 from verificateur_donne import verification_donne  # Vérifier que les données sont correctes
-from generate_random_traffic import generate_random_traffic  # Générer des avions au hasard
+from generate_random_traffic import generate_random_traffic  # Générzaer des avions au hasard
 import time  # Pour mesurer le temps
 
 
