@@ -416,15 +416,39 @@ def main():
     print(f"Avions atterris : {len(avions_atterris)}")
     print(f"Avions crashés : {len(avions_crashes)}")
 
-    # Affichage des 5 premiers avions atterris (si existants)
+    # =========================================================================
+    # AFFICHAGE DÉTAILLÉ DES AVIONS ATTERRIS
+    # =========================================================================
     if avions_atterris:
-        print("\n5 premiers avions atterris :")
-        for i, avion in enumerate(avions_atterris[:5], 1):
-            print(f"   {i}. {avion['id']} (Fuel: {avion['fuel']} min)")
+        print("\nListe complète des avions atterris (par ordre d'atterrissage) :")
+        print("-" * 50)
+        for i, avion in enumerate(avions_atterris, 1):
+            print(f"{i:2d}. {avion['id']:6} | Fuel restant: {avion['fuel']:2d} min | "
+                f"Médical: {'OUI' if avion['medical'] else 'NON':3} | "
+                f"Technique: {'OUI' if avion['technical_issue'] else 'NON':3} | "
+                f"Diplomatie: {avion['diplomatic_level']}/5")
+        print("-" * 50)
     else:
         print("\nAucun avion n'a pu atterrir.")
 
-    # Comparaison des algorithmes de tri
+    # =========================================================================
+    # AFFICHAGE DÉTAILLÉ DES AVIONS CRASHÉS (SI EXISTANTS)
+    # =========================================================================
+    if avions_crashes:
+        print("\nListe complète des avions crashés :")
+        print("-" * 50)
+        for i, avion in enumerate(avions_crashes, 1):
+            print(f"{i:2d}. {avion['id']:6} | Fuel restant: {avion['fuel']:2d} min | "
+                f"Médical: {'OUI' if avion['medical'] else 'NON':3} | "
+                f"Technique: {'OUI' if avion['technical_issue'] else 'NON':3} | "
+                f"Diplomatie: {avion['diplomatic_level']}/5")
+        print("-" * 50)
+    else:
+        print("\nAucun avion n'a crashé.")
+
+    # =========================================================================
+    # COMPARAISON DES ALGORITHMES DE TRI
+    # =========================================================================
     print("\nComparaison des algorithmes de tri :")
     liste_test = avions.copy()
     _, comp_insertion = insertion_tri_score(liste_test.copy(), policy)
@@ -435,7 +459,6 @@ def main():
     print("\n" + "=" * 70)
     print("FIN DE LA SIMULATION")
     print("=" * 70)
-
 # =============================================================================
 # POINT D'ENTRÉE DU PROGRAMME
 # =============================================================================
