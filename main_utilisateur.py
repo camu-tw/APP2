@@ -300,7 +300,7 @@ def main():
     Elle guide l'utilisateur à travers les étapes de la simulation.
     """
     # =========================================================================
-    # BIENVENUE ET CHOIX DU JEU DE DONNÉES
+    # BIENVENUE ET CHOIX DES DONNÉES
     # =========================================================================
     print("=" * 70)
     print("SIMULATION D'ATTERRISSAGE - AÉROPORT DE ROISSY (Tempête Exceptionnelle)")
@@ -350,7 +350,7 @@ def main():
     # =========================================================================
     # VÉRIFICATION DES DONNÉES
     # =========================================================================
-    print("\nVérification de la cohérence des données...")
+    print("\n Vérification de la cohérence des données...")
     erreurs = verification_donnees(avions)
 
     if erreurs:
