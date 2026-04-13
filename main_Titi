@@ -64,7 +64,24 @@ def verification_donnees(listes_avion):
 
 
 #----------------------------------------
-def avions_scoring()#clemsou le fait
+def avions_scoring(AVIONS_INITIAL):
+    """
+    Calcule le score d'un avion en fonction de ses caractéristiques.
+    Le score est une combinaison linéaire de différents paramètres, pondérés par des coefficients en fonction de leur importance (policies).
+    """
+    copie = []
+    for avion in AVIONS_INITIAL:
+        scoring = 0
+        scoring += 5 if avion.get("medical", False) else 1
+        scoring += 5 if avion.get("technical_issue", False) else 1
+        diplomatic_level = avion.get("diplomatic_level", 1)
+        scoring += 5 if diplomatic_level >= 4 else 3 if diplomatic_level >= 2 else 1
+        fuel = avion.get("fuel", 0)
+        scoring += 5 if fuel < 10 else 3 if fuel < 20 else 1
+        avion_copie = avion.copy()
+        avion_copie["scoring"] = scoring
+        copie.append(avion_copie)
+    return copie
 
 
 #--------------------------------------
@@ -108,27 +125,46 @@ def generate_random_traffic(n, scenario="normal"):
 ### **3. POLICIES de priorisation**
 #-----------------------------------------------------------------
 
+POIDS = {
+    "fuel": 4,  # Priorité maximale fixe
+    "medical": 3,  # À ajuster par l'utilisateur (2ème, 3ème ou 4ème priorité)
+    "technical": 2,
+    "diplomatic": 1
+}
+
 def policy_fuel(avion):
-    """Priorité au carburant le plus bas."""
-    return avion["fuel"]
+    """Priorité au carburant le plus bas (toujours priorité maximale)."""
+    return avion["fuel"] * POIDS["fuel"]
 
 def policy_medical(avion):
-    """Priorité aux urgences médicales (5 si vrai, 0 sinon)."""
-    return 5 if avion["medical"] else 0
+    """Priorité aux urgences médicales (pondéré)."""
+    return (5 if avion["medical"] else 0) * POIDS["medical"]
 
 def policy_diplomatic(avion):
-    """Priorité au niveau diplomatique le plus élevé."""
-    return avion["diplomatic_level"]
+    """Priorité au niveau diplomatique (pondéré)."""
+    return avion["diplomatic_level"] * POIDS["diplomatic"]
 
 def policy_technical(avion):
-    """Priorité aux incidents techniques (5 si vrai, 0 sinon)."""
-    return 5 if avion["technical_issue"] else 0
+    """Priorité aux incidents techniques (pondéré)."""
+    return (5 if avion["technical_issue"] else 0) * POIDS["technical"]
+
+def policy_combined(avion):
+    """
+    POLICY combinée : priorité absolue au fuel, puis aux autres critères selon les poids.
+    Retourne un tuple pour le tri lexicographique (fuel en premier).
+    """
+    return (
+        avion["fuel"] * POIDS["fuel"],  # Priorité absolue
+        (5 if avion["medical"] else 0) * POIDS["medical"],
+        (5 if avion["technical_issue"] else 0) * POIDS["technical"],
+        avion["diplomatic_level"] * POIDS["diplomatic"]
+    )
 
 def policy_scoring(avion):
-    """Priorité selon le scoring calculé."""
-    return avion.get("scoring", 0)
+    """Priorité selon le scoring calculé (inchangé)."""
+    return avion.get("scoring", 0) #le .get évite de faire crash si une clé manque dans un disco
 
----
+#---
 
 ### **4. Algorithmes de tri**
 #----------------------------------------------------------------------------
@@ -138,6 +174,9 @@ def insertion_tri_score(L, policy):
     Trie une liste de dictionnaires L selon une policy (fonction de scoring).
     Retourne la liste triée et le nombre de comparaisons.
     """
+    if not L: #gère aussi les listes vides
+        return L, 0
+    
     n = len(L)
     a = 0  # Compteur de comparaisons
     for i in range(1, n):
@@ -155,6 +194,8 @@ def selection_sort(L, policy):
     Trie une liste de dictionnaires L selon une policy (fonction de scoring).
     Retourne la liste triée et le nombre de comparaisons.
     """
+    if not L: #gère aussi les listes vides
+        return L, 0
     n = len(L)
     a = 0
     for i in range(n):
@@ -222,15 +263,15 @@ def simulation_complete(liste_avions, policy, tours_max=100):
     avions_atterris = []
     avions_crashes = []
     avions_en_attente = liste_avions.copy()
-
-    for _ in range(tours_max):
-        if not avions_en_attente:
-            break
+    tours = 0
+    while avions_en_attente and tours < tours_max:
+        tours += 1
         atterris, crashes, en_attente = simuler_tour(avions_en_attente, policy)
         avions_atterris.extend(atterris)
         avions_crashes.extend(crashes)
         avions_en_attente = en_attente
-
+    if avions_en_attente:
+        print(f"Avertissement : {len(avions_en_attente)} avions n'ont pas pu atterrir en {tours_max} tours.")
     return avions_atterris, avions_crashes
 
 #----------------------------------------------------------------------------------------------
@@ -246,30 +287,76 @@ def main():
     else:
         print("Aucune erreur dans les données.")
 
-    # 2. Copier les avions avec scoring
-    avions_avec_scoring = avions_scoring(avions_initiales)
+    # 2. Demander à l'utilisateur le nombre d'avions à générer
+    while True:
+        try:
+            print() 
+            n = int(input("\nCombien d'avions souhaitez-vous générer ? (ex: 10, 30, 50) : "))
+            if n > 0:
+                break
+            else:
+                print("Veuillez entrer un nombre positif.")
+        except ValueError:
+            print("Erreur : veuillez entrer un nombre valide (ex: 10).")
+    print()# test d'un saut de ligne, crash sans ? 
+    scenario = input("Choisissez un scénario (normal/medical_crisis/technical_failure/fuel_crisis/diplomatic_summit) : ")
 
-    # 3. Générer un trafic aléatoire (exemple)
-    trafic_aleatoire = generate_random_traffic(10, scenario="fuel_crisis")
-    print("\n--- Trafic aléatoire généré (10 avions, crise carburant) ---")
-    for avion in trafic_aleatoire:
+    # 3. Générer un trafic aléatoire
+    trafic_aleatoire = generate_random_traffic(n, scenario=scenario)
+    print(f"\n--- Trafic aléatoire généré ({n} avions, scénario: {scenario}) ---")
+    for avion in trafic_aleatoire[:5]:  # Affiche les 5 premiers pour éviter le spam
         print(avion)
 
-    # 4. Simuler avec une policy (ex: priorité carburant)
-    print("\n--- Simulation avec policy_fuel ---")
-    avions_atterris, avions_crashes = simulation_complete(trafic_aleatoire, policy=policy_fuel)
-    print(f"Avions atterris : {len(avions_atterris)}")
-    print(f"Avions crashés : {len(avions_crashes)}")
+    # 4. Demander à l'utilisateur les poids des POLICIES
+    print("\n--- Définissez les priorités (poids) pour chaque POLICY ---")
+    print("Plus le poids est élevé, plus le critère est prioritaire.")
+    POIDS["fuel"] = int(input("Poids pour le carburant (ex: 1, 2, 3) : "))
+    POIDS["medical"] = int(input("Poids pour les urgences médicales (ex: 1, 2, 3) : "))
+    POIDS["technical"] = int(input("Poids pour les incidents techniques (ex: 1, 2, 3) : "))
+    POIDS["diplomatic"] = int(input("Poids pour le niveau diplomatique (ex: 1, 2, 3) : "))
 
-    # 5. Comparaison des tris (exemple)
+    # 5. Choisir la POLICY à utiliser pour la simulation
+    print("\n--- Choisissez la POLICY pour la simulation ---")
+    print("1. Priorité carburant (fuel)")
+    print("2. Priorité médicale (medical)")
+    print("3. Priorité diplomatique (diplomatic)")
+    print("4. Priorité technique (technical)")
+    print("5. Scoring personnalisé (scoring)")
+    choix_policy = input("Entrez le numéro de la POLICY (1-5) : ")
+
+    # Sélection de la POLICY
+    if choix_policy == "1":
+        policy = policy_fuel
+        print("Simulation avec priorité carburant.")
+    elif choix_policy == "2":
+        policy = policy_medical
+        print("Simulation avec priorité médicale.")
+    elif choix_policy == "3":
+        policy = policy_diplomatic
+        print("Simulation avec priorité diplomatique.")
+    elif choix_policy == "4":
+        policy = policy_technical
+        print("Simulation avec priorité technique.")
+    elif choix_policy == "5":
+        policy = policy_scoring
+        print("Simulation avec scoring personnalisé.")
+    else:
+        print("Choix invalide. Utilisation de la priorité carburant par défaut.")
+        policy = policy_fuel
+
+    # 6. Lancer la simulation
+    print("\n--- Simulation en cours ---")
+    avions_atterris, avions_crashes = simulation_complete(trafic_aleatoire, policy=policy)
+    print(f"Résultats : {len(avions_atterris)} avions atterris, {len(avions_crashes)} avions crashés.")
+
+    # 7. Comparaison des tris (optionnel)
     print("\n--- Comparaison des algorithmes de tri ---")
     liste_test = trafic_aleatoire.copy()
-    _, comp_insertion = insertion_tri_score(liste_test.copy(), policy_fuel)
-    _, comp_selection = selection_sort(liste_test.copy(), policy_fuel)
+    _, comp_insertion = insertion_tri_score(liste_test.copy(), policy)
+    _, comp_selection = selection_sort(liste_test.copy(), policy)
     print(f"Tri par insertion : {comp_insertion} comparaisons")
     print(f"Tri par sélection : {comp_selection} comparaisons")
 
-#-----------------------------
-
+# ---------------------------------------------------------
 if __name__ == "__main__":
     main()
