@@ -1,0 +1,443 @@
+from APP_datasets import avions, AVIONS_INITIAL, avions_diplomatic_50, avions_medical_50
+import random
+import time
+
+# =============================================================================
+# 1. FONCTIONS UTILITAIRES POUR LA VÉRIFICATION ET LE SCORING DES DONNÉES
+# =============================================================================
+
+def verification_donnees(listes_avion):
+    """
+    Vérifie la cohérence des données des avions (clés, types, valeurs).
+    Retourne une liste d'erreurs si des incohérences sont détectées.
+    """
+    erreurs = []
+    if not listes_avion:
+        erreurs.append({"erreur n°": "global", "erreur": "La liste des avions est vide"})
+        return erreurs
+
+    for idx, avion in enumerate(listes_avion):
+        # Vérification de l'id
+        if "id" not in avion:
+            erreurs.append({"erreur n°": idx, "erreur": "La clé 'id' est manquante"})
+        else:
+            id_avion = avion.get("id")
+            if not isinstance(id_avion, str):
+                erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'id' doit être une chaîne de caractères"})
+            else:
+                id_avion = id_avion.strip()
+                if len(id_avion) < 2 or len(id_avion) > 40:
+                    erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'id' est trop courte ou trop longue"})
+                elif not all(c.isalnum() for c in id_avion):
+                    erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'id' contient des caractères invalides"})
+                elif not any(c.isalpha() for c in id_avion):
+                    erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'id' doit contenir au moins une lettre"})
+
+        # Vérification du carburant (fuel)
+        if "fuel" not in avion:
+            erreurs.append({"erreur n°": idx, "erreur": "La clé 'fuel' est manquante"})
+        else:
+            if not isinstance(avion.get("fuel"), (int, float)):
+                erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'fuel' doit être un nombre"})
+            elif avion.get("fuel") < 0:
+                erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'fuel' doit être positive"})
+
+        # Vérification des booléens (medical, technical_issue)
+        for key in ["medical", "technical_issue"]:
+            if key not in avion:
+                erreurs.append({"erreur n°": idx, "erreur": f"La clé '{key}' est manquante"})
+            else:
+                if not isinstance(avion.get(key), bool):
+                    erreurs.append({"erreur n°": idx, "erreur": f"La valeur de '{key}' doit être un booléen"})
+
+        # Vérification du niveau diplomatique
+        if "diplomatic_level" not in avion:
+            erreurs.append({"erreur n°": idx, "erreur": "La clé 'diplomatic_level' est manquante"})
+        else:
+            if not isinstance(avion.get("diplomatic_level"), int):
+                erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'diplomatic_level' doit être un entier"})
+            elif avion.get("diplomatic_level") < 1 or avion.get("diplomatic_level") > 5:
+                erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'diplomatic_level' doit être entre 1 et 5"})
+
+    return erreurs
+
+# -----------------------------------------------------------------------------
+
+def avions_scoring(liste_avions):
+    """
+    Calcule un score pour chaque avion en fonction de ses caractéristiques.
+    Le score est utilisé pour prioriser les atterrissages.
+    """
+    copie = []
+    for avion in liste_avions:
+        scoring = 0
+        scoring += 5 if avion.get("medical", False) else 1
+        scoring += 5 if avion.get("technical_issue", False) else 1
+        diplomatic_level = avion.get("diplomatic_level", 1)
+        scoring += 5 if diplomatic_level >= 4 else 3 if diplomatic_level >= 2 else 1
+        fuel = avion.get("fuel", 0)
+        scoring += 5 if fuel < 10 else 3 if fuel < 20 else 1
+        avion_copie = avion.copy()
+        avion_copie["scoring"] = scoring
+        copie.append(avion_copie)
+    return copie
+
+# =============================================================================
+# 2. GÉNÉRATION DE TRAFIC ALÉATOIRE
+# =============================================================================
+
+def generate_random_traffic(n=10, scenario="normal"):
+    """
+    Génère une liste de n avions avec des caractéristiques aléatoires.
+    Scénarios possibles : normal, medical_crisis, technical_failure, fuel_crisis, diplomatic_summit.
+    """
+    avions = []
+    for i in range(n):
+        fuel = random.randint(5, 50)
+        medical = False
+        technical_issue = False
+        diplomatic_level = random.randint(1, 5)
+
+        if scenario == "medical_crisis":
+            medical = random.random() < 0.3
+        elif scenario == "technical_failure":
+            technical_issue = random.random() < 0.25
+        elif scenario == "fuel_crisis":
+            fuel = random.randint(5, 15)
+        elif scenario == "diplomatic_summit":
+            diplomatic_level = random.randint(3, 5)
+
+        avions.append({
+            "id": f"FL{i:03}",
+            "fuel": fuel,
+            "medical": medical,
+            "technical_issue": technical_issue,
+            "diplomatic_level": diplomatic_level,
+            "arrival_time": round(19.40 + i * 0.01, 2)
+        })
+    return avions
+
+# =============================================================================
+# 3. POLITIQUES DE PRIORISATION (POLICIES)
+# =============================================================================
+
+# Poids par défaut pour chaque critère (le fuel a toujours la priorité maximale)
+POIDS = {
+    "fuel": 4,      # Priorité absolue
+    "medical": 3,   # À ajuster par l'utilisateur
+    "technical": 2,
+    "diplomatic": 1
+}
+
+def policy_fuel(avion):
+    """Priorité au carburant le plus bas (toujours priorité maximale)."""
+    return avion["fuel"] * POIDS["fuel"]
+
+def policy_medical(avion):
+    """Priorité aux urgences médicales (pondéré)."""
+    return (5 if avion["medical"] else 0) * POIDS["medical"]
+
+def policy_diplomatic(avion):
+    """Priorité au niveau diplomatique (pondéré)."""
+    return avion["diplomatic_level"] * POIDS["diplomatic"]
+
+def policy_technical(avion):
+    """Priorité aux incidents techniques (pondéré)."""
+    return (5 if avion["technical_issue"] else 0) * POIDS["technical"]
+
+def policy_combined(avion):
+    """
+    Politique combinée : priorité absolue au fuel, puis aux autres critères.
+    Retourne un tuple pour un tri lexicographique.
+    """
+    return (
+        avion["fuel"] * POIDS["fuel"],
+        (5 if avion["medical"] else 0) * POIDS["medical"],
+        (5 if avion["technical_issue"] else 0) * POIDS["technical"],
+        avion["diplomatic_level"] * POIDS["diplomatic"]
+    )
+
+def policy_scoring(avion):
+    """Priorité selon le score calculé par avions_scoring()."""
+    return avion.get("scoring", 0)
+
+# =============================================================================
+# 4. ALGORITHMES DE TRI
+# =============================================================================
+
+def insertion_tri_score(L, policy):
+    """
+    Trie une liste de dictionnaires selon une politique donnée.
+    Retourne la liste triée et le nombre de comparaisons effectuées.
+    """
+    if not L:
+        return L, 0
+
+    n = len(L)
+    comparaisons = 0
+    for i in range(1, n):
+        key = L[i]
+        j = i - 1
+        while j >= 0 and policy(L[j]) > policy(key):
+            L[j + 1] = L[j]
+            j -= 1
+            comparaisons += 1
+        L[j + 1] = key
+    return L, comparaisons
+
+def selection_sort(L, policy):
+    """
+    Trie une liste de dictionnaires selon une politique donnée (version sélection).
+    Retourne la liste triée et le nombre de comparaisons effectuées.
+    """
+    if not L:
+        return L, 0
+
+    n = len(L)
+    comparaisons = 0
+    for i in range(n):
+        min_idx = i
+        for j in range(i + 1, n):
+            if policy(L[j]) < policy(L[min_idx]):
+                min_idx = j
+            comparaisons += 1
+        L[i], L[min_idx] = L[min_idx], L[i]
+    return L, comparaisons
+
+# =============================================================================
+# 5. SIMULATION DYNAMIQUE
+# =============================================================================
+
+def defragmenter_carburant(liste_avions, minutes_ecoulees=5):
+    """Réduit le carburant de chaque avion toutes les 5 minutes."""
+    for avion in liste_avions:
+        avion["fuel"] -= minutes_ecoulees // 5
+        if avion["fuel"] < 0:
+            avion["fuel"] = 0
+    return liste_avions
+
+def verifier_crashes(liste_avions):
+    """Sépare les avions en crashés et en vol."""
+    avions_crashes = [avion for avion in liste_avions if avion["fuel"] <= 0]
+    avions_sains = [avion for avion in liste_avions if avion["fuel"] > 0]
+    return avions_crashes, avions_sains
+
+def simuler_tour(liste_avions, policy):
+    """
+    Simule un tour d'atterrissage :
+    1. Trie les avions selon la politique.
+    2. Le premier avion atterrit.
+    3. Réduit le carburant des autres.
+    4. Vérifie les crashes.
+    """
+    liste_triee, _ = insertion_tri_score(liste_avions.copy(), policy)
+    avion_atterri = liste_triee.pop(0)
+    defragmenter_carburant(liste_triee)
+    avions_crashes, avions_en_attente = verifier_crashes(liste_triee)
+    return [avion_atterri], avions_crashes, avions_en_attente
+
+def simulation_complete(liste_avions, policy, tours_max=100):
+    """
+    Simule l'atterrissage de tous les avions selon une politique.
+    Retourne les avions atterris et crashés.
+    """
+    avions_atterris = []
+    avions_crashes = []
+    avions_en_attente = liste_avions.copy()
+    tours = 0
+
+    while avions_en_attente and tours < tours_max:
+        tours += 1
+        atterris, crashes, en_attente = simuler_tour(avions_en_attente, policy)
+        avions_atterris.extend(atterris)
+        avions_crashes.extend(crashes)
+        avions_en_attente = en_attente
+
+    if avions_en_attente:
+        print(f"Avertissement : {len(avions_en_attente)} avions n'ont pas pu atterrir en {tours_max} tours.")
+    return avions_atterris, avions_crashes
+
+# =============================================================================
+# 6. FONCTION PRINCIPALE (MAIN)
+# =============================================================================
+
+def main():
+    """
+    Fonction principale du programme.
+    Elle guide l'utilisateur à travers les étapes de la simulation.
+    """
+    # =========================================================================
+    # BIENVENUE ET CHOIX DU JEU DE DONNÉES
+    # =========================================================================
+    print("=" * 70)
+    print("SIMULATION D'ATTERRISSAGE - AÉROPORT DE ROISSY (Tempête Exceptionnelle)")
+    print("=" * 70)
+    print("\nSITUATION CRITIQUE : 19h42")
+    print("   - 2 pistes fermées")
+    print("   - 1 seule piste opérationnelle")
+    print("   - Multiple avions en approche\n")
+
+    # Choix du jeu de données
+    print("Choisissez le jeu de données à utiliser :")
+    print("   0 - Liste prédéfinie de 24 avions")
+    print("   1 - Générateur de trafic aléatoire (10 avions)")
+    print("   2 - Générateur personnalisé (nombre d'avions à préciser)")
+
+    choix = None
+    while choix is None:
+        try:
+            choix = int(input("\nVotre choix (0, 1 ou 2) : "))
+            if choix not in [0, 1, 2]:
+                print("Erreur : Veuillez entrer 0, 1 ou 2.")
+                choix = None
+        except ValueError:
+            print("Erreur : Veuillez entrer un nombre entier valide.")
+
+    # Chargement des données
+    if choix == 0:
+        avions = AVIONS_INITIAL
+        print(f"\n   ✓ {len(avions)} avions chargés (liste prédéfinie)")
+    elif choix == 1:
+        avions = generate_random_traffic(10, scenario="fuel_crisis")
+        print(f"\n   ✓ 10 avions générés aléatoirement (scénario : crise de carburant)")
+    else:
+        while True:
+            try:
+                n = int(input("\nNombre d'avions à générer : "))
+                if n > 0:
+                    scenario = input("Scénario (normal/medical_crisis/technical_failure/fuel_crisis/diplomatic_summit) : ")
+                    avions = generate_random_traffic(n, scenario=scenario)
+                    print(f"\n   ✓ {n} avions générés (scénario : {scenario})")
+                    break
+                else:
+                    print("Erreur : Veuillez entrer un nombre positif.")
+            except ValueError:
+                print("Erreur : Veuillez entrer un nombre entier valide.")
+
+    # =========================================================================
+    # VÉRIFICATION DES DONNÉES
+    # =========================================================================
+    print("\nVérification de la cohérence des données...")
+    erreurs = verification_donnees(avions)
+
+    if erreurs:
+        print(f"   ❌ {len(erreurs)} erreur(s) détectée(s) :")
+        for erreur in erreurs:
+            print(f"      - {erreur['erreur']}")
+        return
+    else:
+        print("   ✓ Toutes les données sont valides")
+
+    # Affichage d'un exemple d'avion
+    print("\nExemple d'avion dans le dataset :")
+    premier_avion = avions[0]
+    print(f"   ID : {premier_avion['id']}")
+    print(f"   Carburant restant : {premier_avion['fuel']} minutes")
+    print(f"   Urgence médicale : {'Oui' if premier_avion['medical'] else 'Non'}")
+    print(f"   Incident technique : {'Oui' if premier_avion['technical_issue'] else 'Non'}")
+    print(f"   Importance diplomatique : {premier_avion['diplomatic_level']}/5")
+    print(f"   Heure d'arrivée prévue : {premier_avion['arrival_time']}")
+
+    # =========================================================================
+    # DÉFINITION DES PRIORITÉS (POIDS DES POLITIQUES)
+    # =========================================================================
+    print("\nDéfinissez les priorités pour les critères secondaires :")
+    print("   Le carburant a toujours la priorité maximale (poids = 4).")
+    print("   Classez les 3 autres critères par ordre d'importance (1 = plus important, 3 = moins important) :")
+
+    priorites = {}
+    while True:
+        try:
+            print("\n   1 - Urgences médicales")
+            print("   2 - Incidents techniques")
+            print("   3 - Niveau diplomatique")
+
+            priorites["medical"] = int(input("\nPriorité pour les urgences médicales (1, 2 ou 3) : "))
+            priorites["technical"] = int(input("Priorité pour les incidents techniques (1, 2 ou 3) : "))
+            priorites["diplomatic"] = int(input("Priorité pour le niveau diplomatique (1, 2 ou 3) : "))
+
+            valeurs_priorites = sorted(priorites.values())
+            if valeurs_priorites == [1, 2, 3]:
+                break
+            else:
+                print("Erreur : Les priorités doivent être 1, 2 et 3 sans répétition.")
+        except ValueError:
+            print("Erreur : Veuillez entrer des nombres valides (1, 2 ou 3).")
+
+    # Attribution des poids
+    POIDS["medical"] = 4 - priorites["medical"]
+    POIDS["technical"] = 4 - priorites["technical"]
+    POIDS["diplomatic"] = 4 - priorites["diplomatic"]
+
+    print(f"\nPoids attribués :")
+    print(f"   Fuel : {POIDS['fuel']} (priorité absolue)")
+    print(f"   Medical : {POIDS['medical']}")
+    print(f"   Technical : {POIDS['technical']}")
+    print(f"   Diplomatic : {POIDS['diplomatic']}")
+
+    # =========================================================================
+    # CHOIX DE LA POLITIQUE DE TRI
+    # =========================================================================
+    print("\nChoisissez la politique de tri :")
+    print("   1 - Priorité carburant seule")
+    print("   2 - Priorité combinée (fuel + medical + technical + diplomatic)")
+    print("   3 - Scoring personnalisé")
+
+    choix_policy = None
+    while choix_policy is None:
+        try:
+            choix_policy = int(input("\nVotre choix (1, 2 ou 3) : "))
+            if choix_policy not in [1, 2, 3]:
+                print("Erreur : Veuillez entrer 1, 2 ou 3.")
+                choix_policy = None
+        except ValueError:
+            print("Erreur : Veuillez entrer un nombre valide.")
+
+    # Sélection de la politique
+    if choix_policy == 1:
+        policy = policy_fuel
+        print("\nPolitique sélectionnée : Priorité carburant seule")
+    elif choix_policy == 2:
+        policy = policy_combined
+        print("\nPolitique sélectionnée : Priorité combinée")
+    else:
+        policy = policy_scoring
+        print("\nPolitique sélectionnée : Scoring personnalisé")
+
+    # =========================================================================
+    # SIMULATION ET RÉSULTATS
+    # =========================================================================
+    print("\nLancement de la simulation...")
+    avions_atterris, avions_crashes = simulation_complete(avions, policy=policy)
+
+    print("\n" + "-" * 70)
+    print("RÉSULTATS DE LA SIMULATION")
+    print("-" * 70)
+    print(f"Avions atterris : {len(avions_atterris)}")
+    print(f"Avions crashés : {len(avions_crashes)}")
+
+    # Affichage des 5 premiers avions atterris (si existants)
+    if avions_atterris:
+        print("\n5 premiers avions atterris :")
+        for i, avion in enumerate(avions_atterris[:5], 1):
+            print(f"   {i}. {avion['id']} (Fuel: {avion['fuel']} min)")
+    else:
+        print("\nAucun avion n'a pu atterrir.")
+
+    # Comparaison des algorithmes de tri
+    print("\nComparaison des algorithmes de tri :")
+    liste_test = avions.copy()
+    _, comp_insertion = insertion_tri_score(liste_test.copy(), policy)
+    _, comp_selection = selection_sort(liste_test.copy(), policy)
+    print(f"   Tri par insertion : {comp_insertion} comparaisons")
+    print(f"   Tri par sélection : {comp_selection} comparaisons")
+
+    print("\n" + "=" * 70)
+    print("FIN DE LA SIMULATION")
+    print("=" * 70)
+
+# =============================================================================
+# POINT D'ENTRÉE DU PROGRAMME
+# =============================================================================
+if __name__ == "__main__":
+    main()
