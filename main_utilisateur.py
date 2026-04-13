@@ -1,4 +1,5 @@
 from données.APP_datasets import avions, AVIONS_INITIAL, avions_diplomatic_50, avions_medical_50
+#importer les données des 24 avions de l'exemple de l'APP
 import random
 import time
 
@@ -12,10 +13,13 @@ def verification_donnees(listes_avion):
     Retourne une liste d'erreurs si des incohérences sont détectées.
     """
     erreurs = []
+
+    #si la liste est vide :
     if not listes_avion:
         erreurs.append({"erreur n°": "global", "erreur": "La liste des avions est vide"})
         return erreurs
 
+    #si les id ne sont pas correctes 
     for idx, avion in enumerate(listes_avion):
         # Vérification de l'id
         if "id" not in avion:
@@ -60,6 +64,7 @@ def verification_donnees(listes_avion):
                 erreurs.append({"erreur n°": idx, "erreur": "La valeur de 'diplomatic_level' doit être entre 1 et 5"})
 
     return erreurs
+#erreurs étant la liste de toutes les erreurs trouvées après avoir tout analyser
 
 # -----------------------------------------------------------------------------
 
@@ -82,6 +87,14 @@ def avions_scoring(liste_avions):
         copie.append(avion_copie)
     return copie
 
+def verifier_crashes(liste_avions):
+    """
+    Sépare les avions en deux listes : ceux qui ont crashé (fuel <= 0) et ceux qui sont encore en vol.
+    """
+    avions_crashes = [avion for avion in liste_avions if avion["fuel"] <= 0]
+    avions_sains = [avion for avion in liste_avions if avion["fuel"] > 0]
+    return avions_crashes, avions_sains
+
 # =============================================================================
 # 2. GÉNÉRATION DE TRAFIC ALÉATOIRE
 # =============================================================================
@@ -98,6 +111,7 @@ def generate_random_traffic(n=10, scenario="normal"):
         technical_issue = False
         diplomatic_level = random.randint(1, 5)
 
+        #les critères ont été définit de manière arbitraire (0.3 ,0.25 ,...)
         if scenario == "medical_crisis":
             medical = random.random() < 0.3
         elif scenario == "technical_failure":
@@ -118,10 +132,10 @@ def generate_random_traffic(n=10, scenario="normal"):
     return avions
 
 # =============================================================================
-# 3. POLITIQUES DE PRIORISATION (POLICIES)
+# 3. POLITIQUES DES POLICIES
 # =============================================================================
 
-# Poids par défaut pour chaque critère (le fuel a toujours la priorité maximale)
+# Poids par défaut pour chaque critère (le fuel a toujours la priorité maximale car si l'avion n'a plus de fuel alors il crashe))
 POIDS = {
     "fuel": 4,      # Priorité absolue
     "medical": 3,   # À ajuster par l'utilisateur
@@ -136,10 +150,12 @@ def policy_fuel(avion):
 def policy_medical(avion):
     """Priorité aux urgences médicales (pondéré)."""
     return (5 if avion["medical"] else 0) * POIDS["medical"]
+#si la valeur de 'avion["médical"] est True alors on multiplie par 5 le score medical de l'avion, sinon par 0
 
+#on fait pareil pour la suite
 def policy_diplomatic(avion):
     """Priorité au niveau diplomatique (pondéré)."""
-    return avion["diplomatic_level"] * POIDS["diplomatic"]
+    return (5 if avion["diplomatic_level"] else 0) * POIDS["diplomatic"]
 
 def policy_technical(avion):
     """Priorité aux incidents techniques (pondéré)."""
@@ -170,9 +186,12 @@ def insertion_tri_score(L, policy):
     Trie une liste de dictionnaires selon une politique donnée.
     Retourne la liste triée et le nombre de comparaisons effectuées.
     """
+
+    #On évite un bug si la liste est vide : 
     if not L:
         return L, 0
 
+    #Pour une liste non-vide : 
     n = len(L)
     comparaisons = 0
     for i in range(1, n):
@@ -190,6 +209,8 @@ def selection_sort(L, policy):
     Trie une liste de dictionnaires selon une politique donnée (version sélection).
     Retourne la liste triée et le nombre de comparaisons effectuées.
     """
+
+    #pareil, on évite les liste vides
     if not L:
         return L, 0
 
@@ -205,57 +226,69 @@ def selection_sort(L, policy):
     return L, comparaisons
 
 # =============================================================================
-# 5. SIMULATION DYNAMIQUE
+# 5. SIMULATION AVEC L'UTILISATEUR
 # =============================================================================
 
-def defragmenter_carburant(liste_avions, minutes_ecoulees=5):
-    """Réduit le carburant de chaque avion toutes les 5 minutes."""
+def defragmenter_carburant(liste_avions, minutes_ecoulees=3):
+    """Réduit le carburant de chaque avion en fonction du temps écoulé (en minutes)."""
     for avion in liste_avions:
-        avion["fuel"] -= minutes_ecoulees // 5
+        avion["fuel"] -= minutes_ecoulees  # 1 unité de carburant par minute
         if avion["fuel"] < 0:
             avion["fuel"] = 0
     return liste_avions
 
-def verifier_crashes(liste_avions):
-    """Sépare les avions en crashés et en vol."""
-    avions_crashes = [avion for avion in liste_avions if avion["fuel"] <= 0]
-    avions_sains = [avion for avion in liste_avions if avion["fuel"] > 0]
-    return avions_crashes, avions_sains
-
-def simuler_tour(liste_avions, policy):
+def simuler_tour(liste_avions, policy, dernier_atterrissage=0):
     """
     Simule un tour d'atterrissage :
     1. Trie les avions selon la politique.
-    2. Le premier avion atterrit.
+    2. Un seul avion atterrit toutes les 3 minutes.
     3. Réduit le carburant des autres.
     4. Vérifie les crashes.
     """
     liste_triee, _ = insertion_tri_score(liste_avions.copy(), policy)
-    avion_atterri = liste_triee.pop(0)
-    defragmenter_carburant(liste_triee)
+
+    # Un seul avion peut atterrir par tour (toutes les 3 minutes)
+    if liste_triee:
+        avion_atterri = liste_triee.pop(0)
+    else:
+        avion_atterri = None
+
+    # Réduit le carburant des autres avions (3 minutes écoulées)
+    defragmenter_carburant(liste_triee, minutes_ecoulees=3)
+
+    # Vérifie les crashes
     avions_crashes, avions_en_attente = verifier_crashes(liste_triee)
-    return [avion_atterri], avions_crashes, avions_en_attente
+
+    # Retourne les résultats + le temps actuel pour le prochain tour
+    if avion_atterri:
+        avion_atterri["temps_atterrissage"] = dernier_atterrissage + 3  # Heure d'atterrissage en minutes
+        return [avion_atterri], avions_crashes, avions_en_attente, dernier_atterrissage + 3
+    else:
+        return [], avions_crashes, avions_en_attente, dernier_atterrissage + 3
 
 def simulation_complete(liste_avions, policy, tours_max=100):
     """
-    Simule l'atterrissage de tous les avions selon une politique.
-    Retourne les avions atterris et crashés.
+    Simule l'atterrissage de tous les avions selon une politique,
+    en respectant un intervalle de 3 minutes entre chaque atterrissage.
     """
     avions_atterris = []
     avions_crashes = []
     avions_en_attente = liste_avions.copy()
-    tours = 0
+    dernier_atterrissage = 0  # Temps initial (en minutes)
 
+    tours = 0
     while avions_en_attente and tours < tours_max:
         tours += 1
-        atterris, crashes, en_attente = simuler_tour(avions_en_attente, policy)
+        atterris, crashes, en_attente, dernier_atterrissage = simuler_tour(
+            avions_en_attente, policy, dernier_atterrissage
+        )
         avions_atterris.extend(atterris)
         avions_crashes.extend(crashes)
         avions_en_attente = en_attente
 
     if avions_en_attente:
         print(f"Avertissement : {len(avions_en_attente)} avions n'ont pas pu atterrir en {tours_max} tours.")
-    return avions_atterris, avions_crashes
+    return avions_atterris, avions_crashes, tours
 
 # =============================================================================
 # 6. FONCTION PRINCIPALE (MAIN)
@@ -408,11 +441,12 @@ def main():
     # SIMULATION ET RÉSULTATS
     # =========================================================================
     print("\nLancement de la simulation...")
-    avions_atterris, avions_crashes = simulation_complete(avions, policy=policy)
-
+    avions_atterris, avions_crashes, tours = simulation_complete(avions, policy=policy)
+    print(f"\nTemps total de la simulation : {tours * 3} minutes")
     print("\n" + "-" * 70)
     print("RÉSULTATS DE LA SIMULATION")
     print("-" * 70)
+    print(f"\nTemps total de la simulation : {tours * 3} minutes")
     print(f"Avions atterris : {len(avions_atterris)}")
     print(f"Avions crashés : {len(avions_crashes)}")
 
@@ -420,16 +454,12 @@ def main():
     # AFFICHAGE DÉTAILLÉ DES AVIONS ATTERRIS
     # =========================================================================
     if avions_atterris:
-        print("\nListe complète des avions atterris (par ordre d'atterrissage) :")
-        print("-" * 50)
+        print("\n Liste complète des avions atterris (par ordre d'atterrissage) :")
+        print("-" * 70)
         for i, avion in enumerate(avions_atterris, 1):
-            print(f"{i:2d}. {avion['id']:6} | Fuel restant: {avion['fuel']:2d} min | "
-                f"Médical: {'OUI' if avion['medical'] else 'NON':3} | "
-                f"Technique: {'OUI' if avion['technical_issue'] else 'NON':3} | "
-                f"Diplomatie: {avion['diplomatic_level']}/5")
-        print("-" * 50)
-    else:
-        print("\nAucun avion n'a pu atterrir.")
+            print(f"{i:2d}. {avion['id']:6} | Atterrissage: {avion.get('temps_atterrissage', 0):2d} min | "
+                f"Fuel restant: {avion['fuel']:2d} min | Médical: {'OUI' if avion['medical'] else 'NON':3}")
+            print("-" * 70)
 
     # =========================================================================
     # AFFICHAGE DÉTAILLÉ DES AVIONS CRASHÉS (SI EXISTANTS)
