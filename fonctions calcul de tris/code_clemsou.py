@@ -1,4 +1,4 @@
-from APP_datasets import avions, AVIONS_INITIAL, avions_diplomatic_50, avions_medical_50
+from données.APP_datasets import avions, AVIONS_INITIAL, avions_diplomatic_50, avions_medical_50
 import time
 #test alorithme de tri insertion, bulle et selection, qui est le plus rapide? Réponse : le tri par sélection est plus rapide que le tri à bulle et le tri par insertion, car il nécessite moins de comparaisons et de déplacements d'éléments.
 def insertion_sort(L):

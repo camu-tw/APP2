@@ -4,7 +4,7 @@ Aéroport de Roissy - 19h42
 """
 
 # Imports des modules du projet
-import APP_datasets  # Pour les données des avions
+import données.APP_datasets as APP_datasets  # Pour les données des avions
 from policies import policy_fuel, policy_medical, policy_diplomatic  # Les différentes règles de priorité
 from tris import tri_insertion, tri_selection  # Les algorithmes de tri
 from simulation import simuler_atterrissages, afficher_bilan  # La simulation

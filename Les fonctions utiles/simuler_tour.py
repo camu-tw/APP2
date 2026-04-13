@@ -1,6 +1,6 @@
 from defragmentation_fuel import defragmenter_carburant
-from verifier_crashes.py import verifier_crashes
-from tri_insertion import insertion_tri_score
+#from verifier_crashes import verifier_crashes  "fonction supprimée et réhabiliter dans le main_Titi et main_final
+from tri_insertion.py import insertion_tri_score
 
 def simuler_tour(liste_avions, policy):
     """
