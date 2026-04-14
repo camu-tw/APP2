@@ -376,7 +376,7 @@ def main():
     # =========================================================================
     print("\nDéfinissez les priorités pour les critères secondaires :")
     print("   Le carburant a toujours la priorité maximale (poids = 4).")
-    print("   Classez les 3 autres critères par ordre d'importance (1 = plus important, 3 = moins important) :")
+    print("   Classez les 3 autres critères par ordre d'importance (3 = plus important, 1 = moins important) :")
 
     priorites = {}
     while True:
